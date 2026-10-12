@@ -3,23 +3,35 @@
    Requiere: auth.js cargado antes
    ========================================= */
 
-const FAVORITOS_KEY = 'notipoli_favoritos';
+const FAVORITOS_KEY_PREFIX = 'notipoli_favoritos';
+
+/** Devuelve la clave de localStorage para el usuario actual.
+ *  Si no hay sesión, retorna null para evitar mezclar favoritos. */
+function getFavoritosKey() {
+  const usuario = (typeof getUsuarioActual === 'function') ? getUsuarioActual() : null;
+  if (!usuario || !usuario.id) return null;
+  return FAVORITOS_KEY_PREFIX + '_' + usuario.id;
+}
 
 function getFavoritos() {
-  return JSON.parse(localStorage.getItem(FAVORITOS_KEY) || '[]');
+  const key = getFavoritosKey();
+  if (!key) return [];
+  return JSON.parse(localStorage.getItem(key) || '[]');
 }
 
 function toggleFavorito(id) {
+  const key = getFavoritosKey();
+  if (!key) return false;
   const favs  = getFavoritos();
   const strId = String(id);
   const idx   = favs.indexOf(strId);
   if (idx === -1) {
     favs.push(strId);
-    localStorage.setItem(FAVORITOS_KEY, JSON.stringify(favs));
+    localStorage.setItem(key, JSON.stringify(favs));
     return true;
   }
   favs.splice(idx, 1);
-  localStorage.setItem(FAVORITOS_KEY, JSON.stringify(favs));
+  localStorage.setItem(key, JSON.stringify(favs));
   return false;
 }
 
@@ -97,14 +109,18 @@ function mostrarModalLoginRequerido() {
 /*
   Importa la lista de favoritos desde el parámetro ?_favs= de la URL.
   Necesario en Firefox file:// donde cada archivo tiene su propio localStorage.
+  Nota: auth.js ya procesó ?_s= antes de que este script corra, por lo que
+  getUsuarioActual() ya devuelve el usuario correcto y getFavoritosKey() funciona.
 */
 function importarFavoritosDesdeURL() {
   const params = new URLSearchParams(location.search);
   const favStr = params.get('_favs');
   if (!favStr) return;
   try {
+    const key = getFavoritosKey();
+    if (!key) return; /* sin sesión activa, no importar */
     const favs = favStr.split(',').filter(Boolean);
-    localStorage.setItem(FAVORITOS_KEY, JSON.stringify(favs));
+    localStorage.setItem(key, JSON.stringify(favs));
   } catch (_) {}
   params.delete('_favs');
   const newSearch = params.toString() ? '?' + params.toString() : '';
